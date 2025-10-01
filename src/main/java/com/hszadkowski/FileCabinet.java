@@ -15,62 +15,34 @@ public class FileCabinet implements Cabinet {
 
     @Override
     public Optional<Folder> findFolderByName(String name) {
-        return folders.stream()
-                .map(folder -> findFolderByNameRecursive(folder, name))
-                .filter(Optional::isPresent)
-                .map(Optional::get)
+        return streamAll()
+                .filter(folder -> folder.getName().equals(name))
                 .findFirst();
     }
 
     @Override
     public List<Folder> findFoldersBySize(String size) {
-        return folders.stream()
-                .flatMap(folder -> findFoldersBySizeRecursive(folder, size))
+        return streamAll()
+                .filter(folder -> folder.getSize().equals(size))
                 .collect(Collectors.toList());
     }
 
     @Override
     public int count() {
-        return folders.stream()
-                .mapToInt(this::countRecursive)
-                .sum();
+        return (int) streamAll().count();
     }
 
-    private Optional<Folder> findFolderByNameRecursive(Folder currentFolder, String name) {
-        if (currentFolder.getName().equals(name)) {
-            return Optional.of(currentFolder);
-        }
-        if (currentFolder instanceof MultiFolder) {
-            return ((MultiFolder) currentFolder).getFolders().stream()
-                    .map(subFolder -> findFolderByNameRecursive(subFolder, name))
-                    .filter(Optional::isPresent)
-                    .map(Optional::get)
-                    .findFirst();
-        }
-        return Optional.empty();
+    private Stream<Folder> streamAll() {
+        return this.folders.stream().flatMap(this::streamAllRecursive);
     }
 
-    private Stream<Folder> findFoldersBySizeRecursive(Folder currentFolder, String size) {
-        Stream<Folder> selfStream = currentFolder.getSize().equals(size)
-                ? Stream.of(currentFolder)
-                : Stream.empty();
+    private Stream<Folder> streamAllRecursive(Folder folder) {
+        Stream<Folder> selfStream = Stream.of(folder);
 
-        Stream<Folder> childrenStream = Stream.empty();
-        if (currentFolder instanceof MultiFolder) {
-            childrenStream = ((MultiFolder) currentFolder).getFolders().stream()
-                    .flatMap(subFolder -> findFoldersBySizeRecursive(subFolder, size));
+        if (folder instanceof MultiFolder) {
+            return Stream.concat(selfStream, ((MultiFolder) folder).getFolders().stream()
+                    .flatMap(this::streamAllRecursive));
         }
-
-        return Stream.concat(selfStream, childrenStream);
-    }
-
-    private int countRecursive(Folder currentFolder) {
-        int childrenCount = 0;
-        if (currentFolder instanceof MultiFolder) {
-            childrenCount = ((MultiFolder) currentFolder).getFolders().stream()
-                    .mapToInt(this::countRecursive)
-                    .sum();
-        }
-        return 1 + childrenCount;
+        return selfStream;
     }
 }
